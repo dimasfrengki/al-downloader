@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>ToURL</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🔗</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="bg"></div>
+<main>
+  <header class="top">
+    <div class="brand"><span class="logo">🔗</span><div><b>ToURL</b><small>Ubah file jadi link (Catbox)</small></div></div>
+    <nav class="seg"><a href="/">Download</a><a href="/search.html">Cari</a><a class="on" href="/tourl.html">ToURL</a><a href="/hd.html">HD</a></nav>
+  </header>
+  <section class="panel">
+    <div class="tabs2" id="mt"><button class="t on" data-m="file" type="button">Upload file</button><button class="t" data-m="url" type="button">Dari link</button></div>
+    <div id="pf">
+      <label class="drop" id="dz"><b>📁 Pilih / seret file ke sini</b>Bisa juga tempel gambar (Ctrl+V)<input type="file" id="fi"></label>
+      <div id="pv"></div>
+    </div>
+    <div id="pu" hidden><label for="ui">Link file</label><input id="ui" type="url" placeholder="https://.../file.jpg" autocomplete="off"></div>
+    <div id="eb"><label for="ex">Masa aktif link</label><select id="ex"><option value="0">Permanen</option><option value="1h">1 jam</option><option value="12h">12 jam</option><option value="24h">24 jam</option><option value="72h">3 hari</option></select></div>
+    <button class="go" id="go">Upload ke Catbox</button>
+    <div class="prog" id="pg" hidden><i></i></div>
+    <p class="desc open" style="font-size:.8rem;margin-bottom:0">File lewat server maks 4 MB. Untuk file lebih besar, pakai tab "Dari link" (Catbox yang mengambil filenya).</p>
+  </section>
+  <section id="res" style="margin-top:16px"></section>
+  <section class="panel" id="hs" hidden style="margin-top:16px"><b>Riwayat di perangkat ini</b><div id="hl"></div><button class="ghost" id="hc" type="button" style="margin-top:10px;padding:9px 14px">Hapus riwayat</button></section>
+</main>
+<div id="toast" role="status"></div>
+<script src="/app.js"></script>
+<script src="/tools.js"></script>
+<script>
+let mode='file',file=null,info=null;
+const HRS={'1h':1,'12h':12,'24h':24,'72h':72},EXPL={'0':'Permanen','1h':'1 jam','12h':'12 jam','24h':'24 jam','72h':'3 hari'};
+const go=$('go'),pg=$('pg');
+const bar=f=>{pg.hidden=false;pg.firstChild.style.width=Math.round(f*100)+'%'};
+$('mt').onclick=e=>{const b=e.target.closest('.t');if(!b)return;mode=b.dataset.m;document.querySelectorAll('#mt .t').forEach(x=>x.classList.toggle('on',x===b));$('pf').hidden=mode!=='file';$('pu').hidden=mode!=='url';$('eb').hidden=mode==='url'};
+async function setFile(f){
+  file=f;info=null;
+  const t=f.type||'',u=URL.createObjectURL(f);
+  $('pv').innerHTML=`<div class="pv">${t.startsWith('image/')?`<img src="${u}" alt="">`:t.startsWith('video/')?`<video src="${u}" muted></video>`:'<span class="logo" style="width:64px;height:64px">📄</span>'}<div><b style="word-break:break-all">${esc(f.name)}</b><small style="display:block;color:var(--mut)">${bytes(f.size)||'0 B'}</small></div></div>`;
+  info=await fileInfo(f);
+  $('pv').insertAdjacentHTML('beforeend',`<details><summary>Info lengkap file</summary>${infoTable(info.rows)}</details>`);
+}
+wireDrop($('dz'),$('fi'),setFile);
+const extOf=u=>(u.split('?')[0].match(/\.([a-z0-9]{2,5})$/i)||[])[1]||'';
+const kindOf=u=>{const e=extOf(u).toLowerCase();return /^(jpe?g|png|gif|webp|avif|bmp)$/.test(e)?'img':/^(mp4|webm|mov|m4v)$/.test(e)?'vid':/^(mp3|m4a|ogg|wav|aac|opus)$/.test(e)?'aud':'file'};
+function snip(u,n,k){return {Link:u,Markdown:k==='img'?`![${n}](${u})`:`[${n}](${u})`,HTML:k==='img'?`<img src="${u}" alt="${n}">`:k==='vid'?`<video src="${u}" controls></video>`:k==='aud'?`<audio src="${u}" controls></audio>`:`<a href="${u}">${n}</a>`,BBCode:k==='img'?`[img]${u}[/img]`:`[url=${u}]${n}[/url]`}}
+function result(u,m){
+  const k=kindOf(u),n=m.name||u.split('/').pop(),S=snip(u,n,k);
+  const rows=[['Link',u],['Nama di Catbox',u.split('/').pop()],['Ekstensi',extOf(u)||'-'],['Host',new URL(u).host],['Jenis',m.type||'-'],['Ukuran',m.size?(bytes(m.size)+' ('+m.size.toLocaleString('id-ID')+' byte)'):'-']];
+  if(m.dim)rows.push(['Dimensi',m.dim]);if(m.dur)rows.push(['Durasi',m.dur]);
+  rows.push(['Diunggah',new Date(m.t).toLocaleString('id-ID')],['Masa aktif',m.exp?('Sampai '+new Date(m.exp).toLocaleString('id-ID')+' ('+EXPL[m.e]+')'):'Permanen'],['Waktu upload',(m.ms/1000).toFixed(1)+' detik'],['Cara',m.how]);
+  if(m.hash)rows.push(['SHA-256 (file asli)',m.hash]);
+  $('res').innerHTML=`<article class="res"><div class="body">
+   ${k==='img'?`<img class="media" style="border-radius:14px" src="${esc(u)}" alt="">`:k==='vid'?`<video class="media" style="border-radius:14px" controls playsinline src="${esc(u)}"></video>`:k==='aud'?`<audio controls src="${esc(u)}"></audio>`:''}
+   <div class="urlbox">${esc(u)}</div>
+   <div class="acts"><button class="btn" data-copy="${esc(u)}" type="button">📋 Salin</button><a class="btn s" href="${esc(u)}" target="_blank" rel="noopener">Buka</a><a class="btn s" href="https://wa.me/?text=${encodeURIComponent(u)}" target="_blank" rel="noopener">WhatsApp</a>${navigator.share?'<button class="btn s" id="shr" type="button">Bagikan</button>':''}</div>
+   <div class="tabs2" id="st">${Object.keys(S).map((x,i)=>`<button class="t ${i?'':'on'}" data-s="${x}" type="button">${x}</button>`).join('')}</div>
+   <pre id="sp">${esc(S.Link)}</pre><button class="btn s" id="sc" data-copy="${esc(S.Link)}" type="button">Salin kode</button>
+   <details open><summary>Info lengkap</summary>${infoTable(rows)}</details></div></article>`;
+  $('st').onclick=e=>{const b=e.target.closest('.t');if(!b)return;document.querySelectorAll('#st .t').forEach(x=>x.classList.toggle('on',x===b));$('sp').textContent=S[b.dataset.s];$('sc').dataset.copy=S[b.dataset.s]};
+  if($('shr'))$('shr').onclick=()=>navigator.share({url:u,title:n}).catch(()=>{});
+}
+const HK='tourl_hist';
+const hist=()=>{try{return JSON.parse(localStorage.getItem(HK)||'[]')}catch{return[]}};
+function saveH(m,u){try{const h=hist();h.unshift({u,n:m.name,s:m.size,t:m.t,exp:m.exp});localStorage.setItem(HK,JSON.stringify(h.slice(0,20)))}catch{}drawH()}
+function drawH(){const h=hist();$('hs').hidden=!h.length;$('hl').innerHTML=h.map((x,i)=>`<div class="hi"><div class="n">${esc(x.n||x.u)}<small>${x.s?bytes(x.s)+' • ':''}${new Date(x.t).toLocaleString('id-ID')}${x.exp?' • kedaluwarsa '+new Date(x.exp).toLocaleString('id-ID'):''}</small></div><button class="btn s" data-copy="${esc(x.u)}" type="button">Salin</button><a class="btn s" href="${esc(x.u)}" target="_blank" rel="noopener">Buka</a><button class="btn s" data-del="${i}" type="button">✕</button></div>`).join('')}
+$('hl').onclick=e=>{const b=e.target.closest('[data-del]');if(!b)return;const h=hist();h.splice(+b.dataset.del,1);try{localStorage.setItem(HK,JSON.stringify(h))}catch{}drawH()};
+$('hc').onclick=()=>{try{localStorage.removeItem(HK)}catch{}drawH()};
+go.onclick=async()=>{
+  const ex=$('ex').value,t0=Date.now();let out,meta;
+  if(mode==='file'&&!file){$('res').innerHTML='<div class="msg">Pilih file dulu.</div>';return}
+  const link=$('ui').value.trim();
+  if(mode==='url'&&!/^https?:\/\//i.test(link)){$('res').innerHTML='<div class="msg">Isi link yang diawali http:// atau https://</div>';return}
+  go.disabled=true;go.textContent='Mengunggah...';bar(.03);$('res').innerHTML='<div class="sk"></div>';
+  try{
+    if(mode==='url'){out=await xhrSend('/api/upload?mode=url&url='+encodeURIComponent(link),'','application/json',null);bar(1);meta={name:link.split('/').pop().split('?')[0],how:'Catbox mengambil dari link',e:'0'}}
+    else if(file.size>LIMIT){out=await directUpload(file,ex,bar);meta={name:file.name,size:file.size,type:file.type,how:'Langsung dari browser',e:ex}}
+    else{out=await xhrSend('/api/upload?name='+encodeURIComponent(file.name)+'&expire='+ex,file,'application/octet-stream',bar);meta={name:file.name,size:file.size,type:file.type,how:'Lewat server',e:ex}}
+    meta.t=Date.now();meta.ms=meta.t-t0;meta.exp=HRS[meta.e]?meta.t+HRS[meta.e]*36e5:0;
+    if(info&&mode==='file'){const g=k=>(info.rows.find(r=>r[0]===k)||[])[1];meta.dim=g('Dimensi');meta.dur=info.p.d?dur(info.p.d):'';meta.hash=g('SHA-256')}
+    result(out.url,meta);saveH(meta,out.url);
+  }catch(e){$('res').innerHTML=`<div class="msg">${esc(e.message)}</div>`}
+  go.disabled=false;go.textContent='Upload ke Catbox';setTimeout(()=>pg.hidden=true,600);
+};
+drawH();
+</script>
+</body>
+</html>

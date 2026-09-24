@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>Admin</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🛠️</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+<style>
+.panel+.panel{margin-top:14px}h2{font-size:1rem;margin:0 0 10px}
+.ep{border:1px solid var(--line);border-radius:14px;margin-top:8px;background:var(--bg)}
+.ep>summary{list-style:none;padding:12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap;color:var(--ink)}
+.ep>summary::-webkit-details-marker{display:none}
+.ep .n{font-weight:800;flex:1;min-width:120px}
+.pill{font-size:.72rem;font-weight:800;padding:3px 9px;border-radius:999px;background:var(--chip);color:var(--mut)}
+.pill.c{background:rgba(99,102,241,.18);color:var(--a1)}.pill.o{background:rgba(229,72,77,.15);color:var(--err)}.pill.g{background:rgba(16,185,129,.15);color:var(--ok)}
+.eb{padding:0 12px 12px}.eb label{margin-top:10px}.eb small{color:var(--mut);display:block;word-break:break-all;margin-top:4px}
+.chk{display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:700}.chk input{width:auto}
+.bar{position:sticky;bottom:10px;margin-top:14px;display:flex;gap:8px}
+.bar .go{margin:0}.bar .ghost{padding:0 16px}
+.tabs2{display:flex;gap:6px;flex-wrap:wrap;margin:10px 0}
+.t{padding:7px 13px;border-radius:999px;border:1px solid var(--line);background:var(--chip);color:var(--ink);font:inherit;font-weight:700;font-size:.82rem;cursor:pointer}.t.on{background:var(--a1);color:#fff;border-color:transparent}
+.help{background:var(--chip);border-radius:14px;padding:12px;font-size:.86rem;color:var(--mut)}.help code{background:var(--bg);padding:1px 6px;border-radius:6px;color:var(--ink)}
+.help.bad{background:rgba(229,72,77,.1);color:var(--err)}
+.tr{margin-top:10px;display:flex;gap:8px;flex-wrap:wrap}.tr input{flex:1;min-width:140px}.tr select{width:auto}
+</style>
+</head>
+<body>
+<div class="bg"></div>
+<main>
+  <header class="top">
+    <div class="brand"><span class="logo">🛠</span><div><b>Admin</b><small>Kelola endpoint API</small></div></div>
+    <button class="ghost" id="out" hidden type="button" style="padding:9px 14px">Keluar</button>
+  </header>
+
+  <section class="panel" id="login">
+    <label for="pw">Password admin</label>
+    <input id="pw" type="password" autocomplete="current-password">
+    <button class="go" id="lg">Masuk</button>
+    <div id="lerr" class="msg" hidden style="margin-top:12px"></div>
+  </section>
+
+  <div id="app" hidden>
+    <div id="dbw" class="help bad" hidden style="margin-bottom:14px"></div>
+
+    <section class="panel">
+      <h2>Pengaturan umum</h2>
+      <label for="apikey">API key (kosong = pakai default <code>ptz</code> / env APIKEY)</label>
+      <input id="apikey" autocomplete="off">
+      <label for="ann">Pengumuman untuk user (tampil di atas halaman, kosong = sembunyi)</label>
+      <input id="ann" maxlength="300" placeholder="Contoh: TikTok sedang perbaikan, coba lagi nanti">
+    </section>
+
+    <section class="panel">
+      <h2>Endpoint</h2>
+      <div class="help">Isi <b>URL kustom</b> untuk mengganti API yang error. Pakai <code>{q}</code> untuk link/kata kunci user, <code>{apikey}</code> untuk apikey, dan <code>{type}</code> untuk mp3/mp4. Contoh: <code>https://api-baru.com/tiktok?url={q}&amp;key={apikey}</code>. <b>URL cadangan</b> otomatis dicoba kalau URL utama gagal.</div>
+      <input id="f" type="search" placeholder="Cari endpoint..." style="margin-top:10px">
+      <div class="tabs2" id="tabs"></div>
+      <div id="list"></div>
+    </section>
+
+    <section class="panel">
+      <h2>Cadangan &amp; statistik</h2>
+      <div class="row" style="flex-wrap:wrap">
+        <button class="ghost" id="ex" type="button" style="padding:10px 14px">Ekspor config</button>
+        <label class="ghost" style="margin:0;padding:10px 14px;display:inline-block">Impor config<input id="im" type="file" accept="application/json" hidden></label>
+        <button class="ghost" id="rs" type="button" style="padding:10px 14px">Reset statistik</button>
+      </div>
+    </section>
+
+    <div class="bar"><button class="go" id="sv">Simpan perubahan</button></div>
+  </div>
+</main>
+<div id="toast" role="status"></div>
+<script src="/app.js"></script>
+<script>
+let PW=sessionStorage.getItem('pw')||'',D=null,cfg={ep:{}},tab='all',dirty=false;
+const call=async(action,data={})=>{const r=await fetch('/api/admin',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:PW,action,...data})});const j=await r.json().catch(()=>({}));if(!r.ok)throw new Error(j.error||('Error '+r.status));return j};
+const E=id=>cfg.ep[id]||(cfg.ep[id]={url:'',fallback:'',off:false});
+
+async function load(){
+  D=await call('get');cfg=D.cfg||{};cfg.ep=cfg.ep||{};
+  $('login').hidden=true;$('app').hidden=false;$('out').hidden=false;
+  $('apikey').value=cfg.apikey||'';$('ann').value=cfg.announcement||'';
+  const w=$('dbw');
+  if(!D.redis){w.hidden=false;w.innerHTML='<b>Database belum terhubung</b> sehingga perubahan tidak bisa disimpan. Di Vercel: buka project &rarr; tab <b>Storage</b> &rarr; buat <b>Upstash Redis</b> &rarr; hubungkan ke project ini &rarr; <b>Redeploy</b>.'}else w.hidden=true;
+  tabs();render();
+}
+function tabs(){
+  const T=[['all','Semua'],['dl','Download'],['search','Cari'],['bad','Bermasalah'],['custom','Kustom']];
+  $('tabs').innerHTML=T.map(t=>`<button class="t ${tab===t[0]?'on':''}" data-t="${t[0]}" type="button">${t[1]}</button>`).join('');
+}
+function render(){
+  const s=$('f').value.toLowerCase();
+  const rows=D.reg.filter(r=>{
+    const st=D.stats,ok=st[r.id+':ok']||0,er=st[r.id+':err']||0,e=cfg.ep[r.id]||{};
+    if(s&&!r.id.includes(s))return false;
+    if(tab==='dl'||tab==='search')return r.kind===tab;
+    if(tab==='bad')return er>0;
+    if(tab==='custom')return e.url||e.fallback||e.off;
+    return true;
+  });
+  $('list').innerHTML=rows.map(r=>{
+    const e=cfg.ep[r.id]||{},ok=D.stats[r.id+':ok']||0,er=D.stats[r.id+':err']||0,l=D.last[r.id];
+    const pills=[e.url?'<span class="pill c">Kustom</span>':'',e.fallback?'<span class="pill c">Cadangan</span>':'',e.off?'<span class="pill o">Nonaktif</span>':'',(ok||er)?`<span class="pill ${er>ok?'o':'g'}">✓${ok} ✕${er}</span>`:''].join('');
+    return `<details class="ep" data-id="${esc(r.id)}"><summary><span class="n">${esc(r.kind==='dl'?'⬇ ':'🔎 ')}${esc(r.ep)}</span>${pills}</summary><div class="eb">
+      <small>Default: ${esc(r.url)}</small>
+      ${l?`<small style="color:var(--err)">Error terakhir (${new Date(l.t).toLocaleString('id-ID')}, status ${l.s}): ${esc(l.m)}</small>`:''}
+      <label>URL kustom (utama)</label><input data-f="url" value="${esc(e.url||'')}" placeholder="kosong = pakai default">
+      <label>URL cadangan (fallback)</label><input data-f="fallback" value="${esc(e.fallback||'')}" placeholder="opsional">
+      <label class="chk"><input type="checkbox" data-f="off" ${e.off?'checked':''}> Nonaktifkan (sembunyikan dari user)</label>
+      <div class="tr"><input data-f="tq" placeholder="Link / kata kunci untuk uji">${r.ep==='youtube'?'<select data-f="tt"><option value="mp3">mp3</option><option value="mp4">mp4</option></select>':''}<button class="btn" data-a="test" type="button">Uji</button><button class="btn s" data-a="reset" type="button">Reset</button></div>
+      <pre class="tres" hidden></pre></div></details>`;
+  }).join('')||'<p class="desc open">Tidak ada endpoint.</p>';
+}
+$('f').oninput=render;
+$('tabs').onclick=e=>{const b=e.target.closest('.t');if(b){tab=b.dataset.t;tabs();render()}};
+$('list').addEventListener('input',e=>{
+  const el=e.target,f=el.dataset.f,id=el.closest('.ep')?.dataset.id;if(!f||f==='tq'||f==='tt'||!id)return;
+  E(id)[f]=el.type==='checkbox'?el.checked:el.value.trim();dirty=true;
+});
+$('list').addEventListener('click',async e=>{
+  const b=e.target.closest('[data-a]');if(!b)return;
+  const box=b.closest('.ep'),id=box.dataset.id,a=b.dataset.a;
+  if(a==='reset'){delete cfg.ep[id];dirty=true;const o=box.open;render();document.querySelector(`.ep[data-id="${id}"]`).open=o;return}
+  const pre=box.querySelector('.tres'),q=box.querySelector('[data-f=tq]').value.trim(),tt=box.querySelector('[data-f=tt]');
+  if(!q){toast('Isi link/kata kunci uji dulu');return}
+  b.disabled=true;b.textContent='...';pre.hidden=false;pre.textContent='Menguji...';
+  try{const r=await call('test',{id,q,type:tt?tt.value:'mp3',url:E(id).url});pre.textContent=`${r.status>=200&&r.status<300?'✅':'❌'} Status ${r.status} • ${r.ms} ms\n${r.url}\n\n${r.body}`}
+  catch(er){pre.textContent='❌ '+er.message}
+  b.disabled=false;b.textContent='Uji';
+});
+$('sv').onclick=async()=>{
+  cfg.apikey=$('apikey').value.trim();cfg.announcement=$('ann').value.trim();
+  $('sv').disabled=true;
+  try{await call('save',{cfg});dirty=false;toast('Tersimpan ✓');const o=[...document.querySelectorAll('.ep[open]')].map(x=>x.dataset.id);await load();o.forEach(id=>{const x=document.querySelector(`.ep[data-id="${id}"]`);if(x)x.open=true})}
+  catch(e){toast(e.message)}
+  $('sv').disabled=false;
+};
+$('rs').onclick=async()=>{if(!confirm('Reset semua statistik?'))return;await call('resetstats');await load();toast('Statistik direset')};
+$('ex').onclick=()=>{cfg.apikey=$('apikey').value.trim();cfg.announcement=$('ann').value.trim();const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([JSON.stringify(cfg,null,2)],{type:'application/json'}));a.download='config-downloader.json';a.click()};
+$('im').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{const j=JSON.parse(await f.text());cfg=j;cfg.ep=cfg.ep||{};$('apikey').value=cfg.apikey||'';$('ann').value=cfg.announcement||'';dirty=true;render();toast('Diimpor. Tekan Simpan untuk menerapkan')}catch{toast('File tidak valid')}e.target.value=''};
+$('out').onclick=()=>{sessionStorage.removeItem('pw');location.reload()};
+async function login(){
+  PW=$('pw').value||PW;$('lerr').hidden=true;
+  try{await load();sessionStorage.setItem('pw',PW)}catch(e){PW='';sessionStorage.removeItem('pw');$('lerr').hidden=false;$('lerr').textContent=e.message}
+}
+$('lg').onclick=login;$('pw').addEventListener('keydown',e=>{if(e.key==='Enter')login()});
+window.addEventListener('beforeunload',e=>{if(dirty){e.preventDefault();e.returnValue=''}});
+if(PW)login();
+</script>
+</body>
+</html>

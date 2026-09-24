@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<title>HD</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>✨</text></svg>">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;600;700;800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div class="bg"></div>
+<main>
+  <header class="top">
+    <div class="brand"><span class="logo">✨</span><div><b>HD Enhancer</b><small>Perbesar &amp; pertajam gambar</small></div></div>
+    <nav class="seg"><a href="/">Download</a><a href="/search.html">Cari</a><a href="/tourl.html">ToURL</a><a class="on" href="/hd.html">HD</a></nav>
+  </header>
+  <section class="panel">
+    <label class="drop" id="dz"><b>🖼 Pilih / seret gambar</b>JPG, PNG, WebP. Diproses lokal di perangkatmu, tidak diunggah ke mana pun<input type="file" id="fi" accept="image/*"></label>
+    <div id="pv"></div>
+    <div id="opts" hidden>
+      <label>Perbesar</label>
+      <div class="scroll" id="sc"><button class="pc" data-s="2" type="button">2×</button><button class="pc on" data-s="3" type="button">3×</button><button class="pc" data-s="4" type="button">4×</button></div>
+      <label for="sh">Ketajaman<output id="o1">50</output></label><input class="rg" id="sh" type="range" min="0" max="100" value="50">
+      <label for="bo">Warna &amp; kontras<output id="o2">20</output></label><input class="rg" id="bo" type="range" min="0" max="100" value="20">
+      <label class="chk" style="display:flex;gap:8px;align-items:center;margin-top:12px;font-weight:700"><input id="dn" type="checkbox" checked style="width:auto"> Kurangi noise / artefak JPEG</label>
+      <label for="fmt">Format hasil</label>
+      <select id="fmt"><option value="image/jpeg">JPG (ukuran kecil)</option><option value="image/webp">WebP</option><option value="image/png">PNG (tanpa kompresi)</option></select>
+      <button class="go" id="go">✨ Jadikan HD</button>
+      <div class="prog" id="pg" hidden><i></i></div><small id="stt" style="color:var(--mut)"></small>
+    </div>
+  </section>
+  <section id="res" style="margin-top:16px"></section>
+</main>
+<div id="toast" role="status"></div>
+<script src="/app.js"></script>
+<script src="/tools.js"></script>
+<script>
+const MAXPX=12e6,tick=()=>new Promise(r=>setTimeout(r,0));
+let file=null,bmp=null,scale=3,ofile=null,outUrl='',beforeUrl='';
+const go=$('go'),pg=$('pg'),stt=$('stt');
+const bar=f=>{pg.hidden=false;pg.firstChild.style.width=Math.round(f*100)+'%'};
+function kern(r){return r===1?[.25,.5,.25]:[1/16,4/16,6/16,4/16,1/16]}
+function blur(s,W,h,k){
+  const r=(k.length-1)>>1,tmp=new Float32Array(W*h*3),out=new Float32Array(W*h*3);
+  for(let y=0;y<h;y++)for(let x=0;x<W;x++){let a=0,b=0,c=0;for(let i=-r;i<=r;i++){const xx=Math.min(W-1,Math.max(0,x+i)),p=(y*W+xx)*4,w=k[i+r];a+=s[p]*w;b+=s[p+1]*w;c+=s[p+2]*w}const o=(y*W+x)*3;tmp[o]=a;tmp[o+1]=b;tmp[o+2]=c}
+  for(let y=0;y<h;y++)for(let x=0;x<W;x++){let a=0,b=0,c=0;for(let i=-r;i<=r;i++){const yy=Math.min(h-1,Math.max(0,y+i)),p=(yy*W+x)*3,w=k[i+r];a+=tmp[p]*w;b+=tmp[p+1]*w;c+=tmp[p+2]*w}const o=(y*W+x)*3;out[o]=a;out[o+1]=b;out[o+2]=c}
+  return out;
+}
+// a>0: pertajam (unsharp mask), a<0: haluskan (kurangi noise). sat/con: warna & kontras
+async function pass(src,k,a,sat,con,rep){
+  const W=src.width,H=src.height,r=(k.length-1)>>1,dst=document.createElement('canvas');dst.width=W;dst.height=H;
+  const sc=src.getContext('2d',{willReadFrequently:true}),dc=dst.getContext('2d'),B=160;
+  for(let y0=0;y0<H;y0+=B){
+    const y1=Math.min(H,y0+B),ya=Math.max(0,y0-r),yb=Math.min(H,y1+r),h=yb-ya;
+    const s=sc.getImageData(0,ya,W,h).data,bl=blur(s,W,h,k),out=dc.createImageData(W,y1-y0),o=out.data;
+    for(let y=y0;y<y1;y++){const ry=y-ya,oy=y-y0;for(let x=0;x<W;x++){
+      const si=(ry*W+x)*4,bi=(ry*W+x)*3,oi=(oy*W+x)*4;let R=s[si],G=s[si+1],Bl=s[si+2];
+      R+=a*(R-bl[bi]);G+=a*(G-bl[bi+1]);Bl+=a*(Bl-bl[bi+2]);
+      if(sat!==1||con!==1){const L=.299*R+.587*G+.114*Bl;R=L+(R-L)*sat;G=L+(G-L)*sat;Bl=L+(Bl-L)*sat;R=(R-128)*con+128;G=(G-128)*con+128;Bl=(Bl-128)*con+128}
+      o[oi]=R;o[oi+1]=G;o[oi+2]=Bl;o[oi+3]=s[si+3]}}
+    dc.putImageData(out,0,y0);if(rep)rep(y1/H);await tick();
+  }
+  return dst;
+}
+async function enhance(img,o){
+  const w0=img.width,h0=img.height,cap=Math.sqrt(MAXPX/(w0*h0));
+  let s=o.scale,capped=false;if(s>cap){s=Math.max(1,Math.floor(cap*100)/100);capped=true}
+  const W=Math.round(w0*s),H=Math.round(h0*s);
+  let cur=document.createElement('canvas');cur.width=w0;cur.height=h0;cur.getContext('2d',{willReadFrequently:true}).drawImage(img,0,0);
+  if(o.denoise){stt.textContent='Mengurangi noise...';cur=await pass(cur,kern(1),-.55,1,1,f=>bar(.02+.1*f))}
+  stt.textContent='Memperbesar...';
+  let cw=w0,ch=h0;
+  while(cw<W||ch<H){const nw=Math.min(W,Math.round(cw*1.6)),nh=Math.min(H,Math.round(ch*1.6)),n=document.createElement('canvas');n.width=nw;n.height=nh;const c=n.getContext('2d',{willReadFrequently:true});c.imageSmoothingEnabled=true;c.imageSmoothingQuality='high';c.drawImage(cur,0,0,nw,nh);cur=n;cw=nw;ch=nh;bar(.15+.15*Math.min(1,cw/W));await tick()}
+  const amt=o.sharp/100*(s>=2.5?1.4:1.1),sat=1+o.boost/250,con=1+o.boost/700;
+  if(amt>0||o.boost>0){stt.textContent='Mempertajam...';cur=await pass(cur,kern(s>=2.5?2:1),amt,sat,con,f=>bar(.3+.65*f))}
+  return {canvas:cur,s,capped,W,H};
+}
+async function load(f){
+  file=f;$('res').innerHTML='';if(bmp&&bmp.close)bmp.close();
+  try{bmp=await createImageBitmap(f)}catch{bmp=await new Promise((ok,no)=>{const i=new Image();i.onload=()=>ok(i);i.onerror=no;i.src=URL.createObjectURL(f)})}
+  if(beforeUrl)URL.revokeObjectURL(beforeUrl);beforeUrl=URL.createObjectURL(f);
+  $('pv').innerHTML=`<div class="pv"><img src="${beforeUrl}" alt=""><div><b style="word-break:break-all">${esc(f.name)}</b><small style="display:block;color:var(--mut)">${bmp.width}×${bmp.height} • ${bytes(f.size)}</small></div></div>`;
+  $('opts').hidden=false;
+}
+wireDrop($('dz'),$('fi'),f=>{if(!/^image\//.test(f.type)){toast('Pilih file gambar');return}load(f)});
+$('sc').onclick=e=>{const b=e.target.closest('.pc');if(!b)return;scale=+b.dataset.s;document.querySelectorAll('#sc .pc').forEach(x=>x.classList.toggle('on',x===b))};
+$('sh').oninput=e=>$('o1').textContent=e.target.value;$('bo').oninput=e=>$('o2').textContent=e.target.value;
+go.onclick=async()=>{
+  if(!bmp){toast('Pilih gambar dulu');return}
+  go.disabled=true;go.textContent='Memproses...';$('res').innerHTML='';bar(.01);const t0=performance.now();
+  try{
+    const o={scale,sharp:+$('sh').value,boost:+$('bo').value,denoise:$('dn').checked,fmt:$('fmt').value};
+    const r=await enhance(bmp,o);
+    stt.textContent='Menyimpan hasil...';
+    const blob=await new Promise(ok=>r.canvas.toBlob(ok,o.fmt,.92));
+    if(!blob)throw new Error('Gagal membuat gambar (memori perangkat kurang). Coba skala lebih kecil.');
+    if(outUrl)URL.revokeObjectURL(outUrl);outUrl=URL.createObjectURL(blob);
+    const ext={'image/jpeg':'jpg','image/webp':'webp','image/png':'png'}[blob.type]||'jpg',base=file.name.replace(/\.[^.]+$/,''),secs=((performance.now()-t0)/1000).toFixed(1);
+    const g=(a,b)=>b?g(b,a%b):a,d=g(r.W,r.H),d0=g(bmp.width,bmp.height);
+    const before=[['Nama',file.name],['Tipe',file.type||'-'],['Ukuran',bytes(file.size)+' ('+file.size.toLocaleString('id-ID')+' byte)'],['Dimensi',bmp.width+' × '+bmp.height+' px'],['Megapiksel',(bmp.width*bmp.height/1e6).toFixed(2)+' MP'],['Rasio',(bmp.width/d0)+':'+(bmp.height/d0)]];
+    const after=[['Dimensi',r.W+' × '+r.H+' px'],['Megapiksel',(r.W*r.H/1e6).toFixed(2)+' MP'],['Rasio',(r.W/d)+':'+(r.H/d)],['Skala efektif',r.s.toFixed(2)+'×'+(r.capped?' (dibatasi 12 MP agar tidak kehabisan memori)':'')],['Ukuran',bytes(blob.size)+' ('+blob.size.toLocaleString('id-ID')+' byte)'],['Format',blob.type],['Ketajaman',o.sharp+'%'],['Warna & kontras',o.boost+'%'],['Kurangi noise',o.denoise?'Ya':'Tidak'],['Waktu proses',secs+' detik']];
+    $('res').innerHTML=`<article class="res"><div class="body">
+     <div class="cmp" id="cmp"><img src="${outUrl}" alt="Sesudah"><img class="b" id="bf" src="${beforeUrl}" alt="Sebelum" style="clip-path:inset(0 50% 0 0)"><span class="lb" style="left:8px">Sebelum</span><span class="lb" style="right:8px">Sesudah</span></div>
+     <input class="rg" id="rg" type="range" min="0" max="100" value="50" aria-label="Bandingkan sebelum dan sesudah">
+     <div class="acts"><a class="btn" href="${outUrl}" download="${esc(base)}-hd-${r.s.toFixed(1)}x.${ext}">⬇ Download HD</a><button class="btn s" id="up" type="button">🔗 Jadikan link (Catbox)</button></div>
+     <div id="ur"></div>
+     <details open><summary>Info lengkap: hasil HD</summary>${infoTable(after)}</details>
+     <details><summary>Info lengkap: gambar asli</summary>${infoTable(before)}</details></div></article>`;
+    $('rg').oninput=e=>$('bf').style.clipPath='inset(0 '+(100-e.target.value)+'% 0 0)';
+    $('up').onclick=async()=>{
+      if(blob.size>LIMIT){$('ur').innerHTML='<div class="msg" style="margin-top:10px">Hasil '+bytes(blob.size)+' terlalu besar untuk lewat server (maks 4 MB). Pilih format JPG/WebP atau skala lebih kecil.</div>';return}
+      const u=$('up');u.disabled=true;u.textContent='Mengunggah...';
+      try{const j=await xhrSend('/api/upload?name='+encodeURIComponent(base+'-hd.'+ext)+'&expire=0',blob,'application/octet-stream');$('ur').innerHTML='<div class="urlbox">'+esc(j.url)+'</div><div class="acts"><button class="btn" data-copy="'+esc(j.url)+'" type="button">📋 Salin</button><a class="btn s" href="'+esc(j.url)+'" target="_blank" rel="noopener">Buka</a></div>'}
+      catch(e){$('ur').innerHTML='<div class="msg" style="margin-top:10px">'+esc(e.message)+'</div>'}
+      u.disabled=false;u.textContent='🔗 Jadikan link (Catbox)';
+    };
+    bar(1);stt.textContent='Selesai dalam '+secs+' detik';
+  }catch(e){$('res').innerHTML=`<div class="msg">${esc(e.message)}</div>`;stt.textContent=''}
+  go.disabled=false;go.textContent='✨ Jadikan HD';setTimeout(()=>pg.hidden=true,800);
+};
+</script>
+</body>
+</html>

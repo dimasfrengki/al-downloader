@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>All Downloader</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>⬇️</text></svg>">
+<style>
+:root{--bg:#f4f6fb;--card:#fff;--ink:#141a2e;--mut:#65708c;--line:#dde3f0;--acc:#4f46e5;--ok:#0f9d6b;--err:#d23a4a}
+@media(prefers-color-scheme:dark){:root{--bg:#0f1220;--card:#181c30;--ink:#eef0fa;--mut:#96a0bf;--line:#2a3050;--acc:#7c74ff}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;padding:20px 16px 60px}
+main{max-width:560px;margin:0 auto}
+h1{font-size:1.6rem;margin:8px 0 4px}
+p.sub{color:var(--mut);margin:0 0 20px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px}
+label{display:block;font-weight:600;font-size:.9rem;margin:12px 0 6px}
+select,input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--line);background:var(--bg);color:var(--ink);font:inherit}
+select:focus,input:focus,button:focus-visible,a:focus-visible{outline:2px solid var(--acc);outline-offset:2px}
+button.go{width:100%;margin-top:16px;padding:13px;border:0;border-radius:10px;background:var(--acc);color:#fff;font:inherit;font-weight:600;cursor:pointer}
+button.go:disabled{opacity:.6}
+#out{margin-top:16px}
+.tabs{display:flex;gap:6px;margin-bottom:12px}
+.tabs a{text-align:center;text-decoration:none;flex:1;padding:10px;border-radius:10px;border:1px solid var(--line);background:var(--card);color:var(--ink);font:inherit;font-weight:600;cursor:pointer}
+.tabs a.on{background:var(--acc);border-color:var(--acc);color:#fff}
+.item .t{font-weight:600}.item .f{color:var(--mut);font-size:.88rem;margin-top:2px;white-space:pre-wrap}
+.item{border:1px solid var(--line);border-radius:12px;padding:12px;margin-top:10px;background:var(--card);word-break:break-word}
+.item img{max-width:100%;border-radius:8px;display:block;margin-bottom:8px}
+.item video,.item audio{width:100%;margin-bottom:8px}
+.item b{display:block;margin-bottom:4px}
+.item a.btn{display:inline-block;margin:6px 6px 0 0;padding:8px 14px;background:var(--acc);color:#fff;border-radius:8px;text-decoration:none;font-size:.9rem}
+.msg{color:var(--err);margin-top:12px}
+details{margin-top:12px;color:var(--mut);font-size:.85rem}
+pre{white-space:pre-wrap;word-break:break-all;background:var(--bg);padding:10px;border-radius:8px;max-height:260px;overflow:auto}
+</style>
+</head>
+<body>
+<main>
+  <nav class="tabs"><a href="/" class="on">Download</a><a href="/search.html" class="">Cari</a></nav>
+  <h1>All Downloader</h1>
+  <p class="sub">Pilih platform, tempel link, lalu unduh.</p>
+  <div class="card">
+    <label for="ep">Platform</label>
+    <select id="ep"></select>
+    <div id="tw" hidden><label for="type">Format</label><select id="type"><option value="mp3">MP3 (audio)</option><option value="mp4">MP4 (video)</option></select></div>
+    <label for="q" id="ql">Link</label>
+    <input id="q" type="text" inputmode="url" autocomplete="off" placeholder="https://...">
+    <button class="go" id="go">Download</button>
+  </div>
+  <div id="out" aria-live="polite"></div>
+</main>
+<script>
+const EPS=[
+ ['instagram','Instagram','https://www.instagram.com/reel/...'],
+ ['facebook','Facebook','https://www.facebook.com/reel/...'],
+ ['fb-reel','Facebook Reels','https://www.facebook.com/reel/...'],
+ ['pinterest','Pinterest','https://pin.it/...'],
+ ['capcut','CapCut','https://www.capcut.com/template-detail/...'],
+ ['snackvideo','SnackVideo','https://s.snackvideo.com/p/...'],
+ ['dailymotion','Dailymotion','https://www.dailymotion.com/video/...'],
+ ['bstation','Bstation (BiliBili)','https://www.bilibili.tv/id/video/...'],
+ ['tiktok','TikTok','https://vt.tiktok.com/...'],
+ ['twitter','Twitter / X','https://x.com/username/status/123'],
+ ['threads','Threads','https://www.threads.net/@user/post/...'],
+ ['youtube','YouTube (MP3 / MP4)','https://www.youtube.com/watch?v=...'],
+ ['ytdl-mp3','YouTube MP3 (v2)','https://www.youtube.com/watch?v=...'],
+ ['ytdl-mp4','YouTube MP4 (v2)','https://www.youtube.com/watch?v=...'],
+ ['spotify','Spotify','https://open.spotify.com/track/...'],
+ ['spotify2','Spotify V2','https://open.spotify.com/track/...'],
+ ['terabox','TeraBox','https://terabox.com/s/...'],
+ ['soundcloud','SoundCloud','https://soundcloud.com/artist/track'],
+ ['mediafire','Mediafire','https://www.mediafire.com/file/...'],
+ ['gdrive','Google Drive','https://drive.google.com/file/d/...'],
+ ['gofile','GoFile','https://gofile.io/d/...'],
+ ['krakenfiles','KrakenFiles','https://krakenfiles.com/view/...'],
+ ['pixeldrain','Pixeldrain','https://pixeldrain.com/u/...'],
+ ['sfile','Sfile.mobi','https://sfile.mobi/...'],
+ ['github','GitHub (clone)','https://github.com/user/repo'],
+ ['apkcombo','APKCombo (nama game/app)','Mobile Legends'],
+ ['apkpure','APKPure (nama app)','WhatsApp']
+];
+const $=id=>document.getElementById(id);
+const ep=$("ep"),q=$("q"),out=$("out"),go=$("go");
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const isUrl=s=>typeof s==='string'&&/^https?:\/\//.test(s);
+const isImg=u=>/\.(jpe?g|png|webp|gif)(\?|$)/i.test(u);
+const isVid=u=>/\.(mp4|webm|mov)(\?|$)/i.test(u);
+const isAud=u=>/\.(mp3|m4a|ogg|wav)(\?|$)/i.test(u);
+
+// kumpulkan semua URL dari JSON apa pun bentuknya
+function collect(o,path='',acc=[]){
+  if(isUrl(o)){acc.push({k:path,u:o})}
+  else if(Array.isArray(o)){o.forEach((v,i)=>collect(v,path+'['+i+']',acc))}
+  else if(o&&typeof o==='object'){for(const k in o)collect(o[k],k,acc)}
+  return acc;
+}
+function firstText(o,keys){for(const k of keys){if(o&&typeof o[k]==='string')return o[k]}return ''}
+function render(data){
+  const root=data.result||data.data||data;
+  const links=collect(root);
+  const title=firstText(root,['title','name','caption','filename','fileName']);
+  let html='';
+  if(title)html+=`<div class="item"><b>${esc(title)}</b></div>`;
+  const seen=new Set();
+  for(const {k,u} of links){
+    if(seen.has(u))continue;seen.add(u);
+    let media='';
+    if(isImg(u)||/thumb|cover|image|photo|poster/i.test(k)&&!isVid(u))media=`<img src="${esc(u)}" loading="lazy" alt="">`;
+    else if(isVid(u))media=`<video src="${esc(u)}" controls preload="metadata"></video>`;
+    else if(isAud(u))media=`<audio src="${esc(u)}" controls></audio>`;
+    html+=`<div class="item">${media}<b>${esc(k||'link')}</b><a class="btn" href="${esc(u)}" target="_blank" rel="noopener" download>Download</a><a class="btn" style="background:var(--mut)" href="${esc(u)}" target="_blank" rel="noopener">Buka</a></div>`;
+  }
+  if(!seen.size)html+=`<div class="msg">Tidak ada link unduhan di respons. Cek data mentah di bawah.</div>`;
+  html+=`<details><summary>Data mentah</summary><pre>${esc(JSON.stringify(data,null,2))}</pre></details>`;
+  out.innerHTML=html;
+}
+
+ep.innerHTML=EPS.map(e=>`<option value="${e[0]}">${e[1]}</option>`).join('');
+function sync(){const e=EPS.find(x=>x[0]===ep.value);q.placeholder=e[2];$('tw').hidden=e[0]!=='youtube';$('ql').textContent=/^apk/.test(e[0])?'Nama aplikasi':'Link'}
+ep.onchange=sync;sync();
+q.addEventListener('keydown',e=>{if(e.key==='Enter')go.click()});
+go.onclick=async()=>{
+  const val=q.value.trim();
+  if(!val){out.innerHTML='<div class="msg">Isi link atau nama aplikasi dulu.</div>';return}
+  go.disabled=true;go.textContent='Memproses...';out.innerHTML='';
+  try{
+    const r=await fetch(`/api/dl?kind=dl&ep=${encodeURIComponent(ep.value)}&q=${encodeURIComponent(val)}&type=${$('type').value}`);
+    const t=await r.text();
+    let d;try{d=JSON.parse(t)}catch{d={raw:t}}
+    if(!r.ok||d.error||d.status===false)throw new Error(d.error||d.message||('Error '+r.status));
+    render(d);
+  }catch(e){out.innerHTML=`<div class="msg">${esc(e.message)}</div>`}
+  go.disabled=false;go.textContent='Download';
+};
+</script>
+</body>
+</html>
